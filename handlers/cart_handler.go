@@ -39,3 +39,11 @@ func DeleteFromCartHandler(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Товар не найден в корзине"})
 	}
 }
+
+func GetCartTotalHandler(c *gin.Context) {
+    total := 0.0
+    for _, item := range services.GetCart() {
+        total += item.Price * float64(item.Quantity)
+    }
+    c.JSON(http.StatusOK, gin.H{"total": total})
+}

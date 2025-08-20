@@ -25,6 +25,7 @@ func main() {
 	router.DELETE("/products/:id", handlers.DeleteProductHandler)
 
 	//Корзина
+	router.GET("/cart/total", handlers.GetCartTotalHandler)
 	router.GET("/cart", handlers.GetCartHandler)
 	router.POST("/cart", handlers.AddToCartHandler)
 	router.DELETE("/cart/:id", handlers.DeleteFromCartHandler)
