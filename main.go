@@ -10,6 +10,13 @@ import (
 func main() {
 	router := gin.Default() // объект роутера Gin
 
+	router.Static("/static", "./static") // подключаем фронтенд
+
+	// Главная страница
+	router.GET("/", func(c *gin.Context) {
+		c.File("./static/index.html")
+	})
+
 	// Товары
 	router.GET("/products", handlers.GetProductsHandler)
 	router.GET("/products/:id", handlers.GetProductByIDHandler)
@@ -22,7 +29,7 @@ func main() {
 	router.POST("/cart", handlers.AddToCartHandler)
 	router.DELETE("/cart/:id", handlers.DeleteFromCartHandler)
 
-	router.Run(":8080") // запуск сервера
-
 	fmt.Println("Server running at http://localhost:8080")
+
+	router.Run(":8080") // запуск сервера
 }

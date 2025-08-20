@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <title>Go Shop</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    body { font-family: sans-serif; margin: 0; background: #f8fafc; }
+    header { background: #ffffffcc; backdrop-filter: blur(6px); position: sticky; top: 0; z-index: 100; display: flex; justify-content: space-between; align-items: center; padding: 10px 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+    header h1 { font-size: 1.5rem; color: #059669; margin: 0; }
+    header button { border: none; padding: 6px 12px; border-radius: 12px; cursor: pointer; font-weight: bold; margin-left: 5px; color: white; transition: 0.2s; }
+    header button.add { background: #059669; }
+    header button.cart { background: #111827; }
+    main { padding: 20px; max-width: 1200px; margin: 0 auto; display: grid; grid-template-columns: repeat(auto-fill,minmax(250px,1fr)); gap: 20px; }
+    .product { background: white; border-radius: 16px; padding: 16px; box-shadow: 0 2px 6px rgba(0,0,0,0.08); display: flex; flex-direction: column; opacity: 0; transform: translateY(20px); transition: all 0.3s ease; }
+    .product.show { opacity: 1; transform: translateY(0); }
+    .product h3 { margin: 0; font-size: 1.2rem; color: #111827; }
+    .product p { margin: 4px 0; color: #6b7280; font-size: 0.9rem; }
+    .badge { display: inline-block; padding: 2px 6px; border-radius: 12px; font-size: 0.75rem; font-weight: bold; background: #fef3c7; color: #b45309; margin-top: 4px; }
+    .product .buttons { margin-top: auto; display: flex; justify-content: space-between; margin-top: 12px; }
+    .product .buttons button { padding: 6px 10px; border-radius: 8px; font-weight: bold; border: none; cursor: pointer; transition: 0.2s; }
+    .btn-add { background: #059669; color: white; }
+    .btn-edit { background: #f97316; color: white; }
+    .btn-delete { background: #dc2626; color: white; }
+    .btn-add:hover { background: #047857; }
+    .btn-edit:hover { background: #ea580c; }
+    .btn-delete:hover { background: #b91c1c; }
+
+    /* CART DRAWER */
+    .cart-drawer { position: fixed; top: 0; right: -100%; width: 320px; height: 100%; background: white; box-shadow: -2px 0 8px rgba(0,0,0,0.2); transition: right 0.3s ease; z-index: 200; padding: 20px; display: flex; flex-direction: column; }
+    .cart-drawer.open { right: 0; }
+    .cart-drawer h2 { margin-top: 0; margin-bottom: 16px; }
+    .cart-item { display: flex; justify-content: space-between; margin-bottom: 12px; padding-bottom: 6px; border-bottom: 1px solid #e5e7eb; }
+    .cart-item p { margin: 0; }
+    .cart-item button { background: #dc2626; color: white; border: none; border-radius: 6px; padding: 4px 8px; cursor: pointer; transition: 0.2s; }
+    .cart-item button:hover { background: #b91c1c; }
+    .cart-total { margin-top: auto; font-weight: bold; font-size: 1.2rem; text-align: right; }
+    .overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.3); opacity: 0; pointer-events: none; transition: opacity 0.3s ease; z-index: 150; }
+    .overlay.show { opacity: 1; pointer-events: all; }
+
+    /* MODAL ADD PRODUCT */
+    #add-product-modal { display:none; position:fixed; inset:0; background:#000000aa; justify-content:center; align-items:center; z-index:300; }
+    #add-product-modal > div { background:white; padding:20px; border-radius:12px; width:300px; display:flex; flex-direction:column; gap:8px; }
+    #add-product-modal input { padding:6px; border-radius:6px; border:1px solid #ccc; width:100%; }
+    #add-product-modal button { padding:6px; border:none; border-radius:6px; cursor:pointer; font-weight:bold; }
+    #add-product-modal button.submit { background:#059669; color:white; }
+    #add-product-modal button.cancel { background:#dc2626; color:white; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Go Shop</h1>
+    <div>
+      <button class="add" onclick="openAddProduct()">Добавить товар</button>
+      <button class="cart" onclick="toggleCart()">Корзина (<span id="cart-count">0</span>)</button>
+    </div>
+  </header>
+
+  <main id="products"></main>
+
+  <!-- CART DRAWER -->
+  <div class="overlay" id="cart-overlay" onclick="toggleCart()"></div>
+  <div class="cart-drawer" id="cart-drawer">
+    <h2>Корзина</h2>
+    <div id="cart-items"></div>
+    <div class="cart-total" id="cart-total">Итого: 0 ₽</div>
+  </div>
+
+  <!-- MODAL ADD PRODUCT -->
+  <div id="add-product-modal">
+    <div>
+      <h3>Добавить товар</h3>
+      <input id="new-name" placeholder="Название">
+      <input id="new-desc" placeholder="Описание">
+      <input id="new-price" type="number" placeholder="Цена">
+      <input id="new-qty" type="number" placeholder="Количество">
+      <button class="submit" onclick="submitNewProduct()">Добавить</button>
+      <button class="cancel" onclick="closeAddProduct()">Отмена</button>
+    </div>
+  </div>
+
+  <script>
+    const API_BASE = 'http://localhost:8080';
+    let products = [];
+    let cart = [];
+
+    async function fetchJSON(url, options={}) {
+      const res = await fetch(url, options);
+      if (!res.ok) throw new Error(await res.text());
+      return res.json();
+    }
+
+    // ------------------- LOAD -------------------
+    async function loadProducts() {
+      products = await fetchJSON(API_BASE + '/products');
+      renderProducts();
+    }
+
+    async function loadCart() {
+      cart = await fetchJSON(API_BASE + '/cart');
+      renderCart();
+    }
+
+    // ------------------- RENDER -------------------
+    function renderProducts() {
+      const container = document.getElementById('products');
+      container.innerHTML = '';
+      products.forEach(p => {
+        const div = document.createElement('div');
+        div.className = 'product';
+        div.innerHTML = `
+          <h3>${p.name}</h3>
+          <p>${p.description}</p>
+          <p><b>${p.price.toLocaleString()} ₽</b></p>
+          ${p.quantity < 10 ? `<span class="badge">Осталось мало</span>` : ''}
+          <p>На складе: ${p.quantity}</p>
+          <div class="buttons">
+            <button class="btn-add" onclick="addToCart(${p.id},1)" ${p.quantity<=0?'disabled':''}>В корзину</button>
+            <button class="btn-delete" onclick="deleteProduct(${p.id})">Удалить</button>
+          </div>
+        `;
+        container.appendChild(div);
+        setTimeout(() => div.classList.add('show'), 50);
+      });
+    }
+
+    function renderCart() {
+      const itemsContainer = document.getElementById('cart-items');
+      itemsContainer.innerHTML = '';
+      let total = 0;
+      cart.forEach(item => {
+        total += item.price * item.quantity;
+        const div = document.createElement('div');
+        div.className = 'cart-item';
+        div.innerHTML = `
+          <div>
+            <p>${item.name}</p>
+            <p>${item.description}</p>
+            <p>Цена: ${item.price.toLocaleString()} ₽ × ${item.quantity}</p>
+          </div>
+          <button onclick="removeFromCart(${item.product_id})">Удалить</button>
+        `;
+        itemsContainer.appendChild(div);
+      });
+      document.getElementById('cart-total').textContent = 'Итого: ' + total.toLocaleString() + ' ₽';
+      document.getElementById('cart-count').textContent = cart.length;
+    }
+
+    // ------------------- CART -------------------
+    async function addToCart(productId, qty) {
+      await fetchJSON(API_BASE + '/cart', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({product_id: productId, quantity: qty})
+      });
+      await loadProducts();
+      await loadCart();
+      openCart();
+    }
+
+    async function removeFromCart(productId) {
+      await fetchJSON(API_BASE + '/cart/' + productId, {method:'DELETE'});
+      await loadProducts();
+      await loadCart();
+    }
+
+    // ------------------- PRODUCTS -------------------
+    async function deleteProduct(productId) {
+      await fetchJSON(API_BASE + '/products/' + productId, {method:'DELETE'});
+      await loadProducts();
+      await loadCart();
+    }
+
+    async function submitNewProduct() {
+      const name = document.getElementById('new-name').value;
+      const description = document.getElementById('new-desc').value;
+      const price = parseFloat(document.getElementById('new-price').value);
+      const quantity = parseInt(document.getElementById('new-qty').value);
+
+      if (!name || !description || isNaN(price) || isNaN(quantity)) {
+        alert('Заполните все поля корректно');
+        return;
+      }
+
+      await fetchJSON(API_BASE + '/products', {
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({name, description, price, quantity})
+      });
+
+      closeAddProduct();
+      await loadProducts();
+    }
+
+    function openAddProduct() {
+      document.getElementById('add-product-modal').style.display = 'flex';
+    }
+
+    function closeAddProduct() {
+      document.getElementById('add-product-modal').style.display = 'none';
+    }
+
+    // ------------------- UI -------------------
+    function toggleCart() {
+      const drawer = document.getElementById('cart-drawer');
+      const overlay = document.getElementById('cart-overlay');
+      const open = drawer.classList.contains('open');
+      if(open) {
+        drawer.classList.remove('open');
+        overlay.classList.remove('show');
+      } else {
+        drawer.classList.add('open');
+        overlay.classList.add('show');
+      }
+    }
+
+    function openCart() { 
+      document.getElementById('cart-drawer').classList.add('open'); 
+      document.getElementById('cart-overlay').classList.add('show'); 
+    }
+
+    // ------------------- INITIAL LOAD -------------------
+    loadProducts();
+    loadCart();
+  </script>
+</body>
+</html>

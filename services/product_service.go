@@ -71,7 +71,7 @@ func DeleteFromCart(productID int) bool {
 					break
 				}
 			}
-			cart = append(cart[i:], cart[i+1:]...)
+			cart = append(cart[:i], cart[i+1:]...)
 			return true
 		}
 	}

@@ -10,7 +10,7 @@ import (
 )
 
 func GetProductsHandler(c *gin.Context) {
-	products := services.GetProducts
+	products := services.GetProducts()
 	c.JSON(http.StatusOK, products)
 }
 
