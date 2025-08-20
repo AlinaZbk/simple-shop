@@ -14,7 +14,7 @@ func GetProductsHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, products)
 }
 
-func GetProductByID(c *gin.Context) {
+func GetProductByIDHandler(c *gin.Context) {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Неверный ID"})
